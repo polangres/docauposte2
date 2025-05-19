@@ -47,14 +47,9 @@ export default class extends Controller {
      * No return value as it updates the DOM directly.
      */
     validateTeamUapName() {
-        const regex = /^(?!-)(?!.*--)[A-Z-]{3,}(?<!-)$/;
+        const regex = /^([A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][A-ZÉÈÊËÀÂÄÔÖÙÛÜÇa-zéèêëàâäôöùûüç]+ [A-Z]+|[A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][A-ZÉÈÊËÀÂÄÔÖÙÛÜÇa-zéèêëàâäôöùûüç]+)$/;
         let isValid = true;
         let name = '';
-
-        // Convert inputs to uppercase
-        if (this.hasTeamNameTarget && this.teamNameTarget.value) {
-            this.teamNameTarget.value = this.teamNameTarget.value.toUpperCase();
-        }
 
         if (this.hasUapNameTarget && this.uapNameTarget.value) {
             this.uapNameTarget.value = this.uapNameTarget.value.toUpperCase();
@@ -83,7 +78,7 @@ export default class extends Controller {
         if (isValid) {
             this.messageTarget.textContent = "";
         } else {
-            this.messageTarget.textContent = "Format invalide. Veuillez saisir au moins 3 lettres majuscules, sans accent, ni caractères spéciaux, sauf un tiret. Le nom ne doit pas commencer ou finir par un point ou un tiret.";
+            this.messageTarget.textContent = "Format invalide. Veuillez saisir soit un mot simple, soit sous la forme 'Équipe X'.";
             this.messageTarget.style.color = "DarkRed"; // Display the message in red color.
         }
     }
