@@ -6,9 +6,12 @@ use App\Repository\TrainingRecordRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\UX\Turbo\Attribute\Broadcast;
+use Doctrine\ORM\Mapping\UniqueConstraint;
+use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity(repositoryClass: TrainingRecordRepository::class)]
 #[Broadcast]
+// #[UniqueConstraint(name: 'unique_training_records_by_operator_upload_couple', columns: ['upload_id', 'operator_id'])]
 class TrainingRecord
 {
     #[ORM\Id]
@@ -27,9 +30,6 @@ class TrainingRecord
 
     #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
     private ?\DateTimeInterface $date = null;
-
-    #[ORM\Column(length: 255, nullable: true)]
-    private ?string $iluo = null;
 
     #[ORM\ManyToOne(inversedBy: 'trainingRecords')]
     private ?Trainer $trainer = null;
@@ -83,18 +83,6 @@ class TrainingRecord
     public function setDate(?\DateTimeInterface $date): static
     {
         $this->date = $date;
-
-        return $this;
-    }
-
-    public function getIluo(): ?string
-    {
-        return $this->iluo;
-    }
-
-    public function setIluo(?string $iluo): static
-    {
-        $this->iluo = $iluo;
 
         return $this;
     }

@@ -24,6 +24,14 @@ class UserRepository extends BaseRepository implements PasswordUpgraderInterface
         parent::__construct($registry, User::class);
     }
 
+    /**
+     * Saves a User entity to the database.
+     *
+     * @param User $entity The User entity to be saved
+     * @param bool $flush  Whether to immediately execute the persist query (true) or delay it (false)
+     *
+     * @return void
+     */
     public function save(User $entity, bool $flush = false): void
     {
         $this->getEntityManager()->persist($entity);
@@ -33,6 +41,15 @@ class UserRepository extends BaseRepository implements PasswordUpgraderInterface
         }
     }
 
+
+    /**
+     * Removes a User entity from the database.
+     *
+     * @param User $entity The User entity to be removed
+     * @param bool $flush  Whether to immediately execute the removal query (true) or delay it (false)
+     *
+     * @return void
+     */
     public function remove(User $entity, bool $flush = false): void
     {
         $this->getEntityManager()->remove($entity);
@@ -42,8 +59,19 @@ class UserRepository extends BaseRepository implements PasswordUpgraderInterface
         }
     }
 
+
     /**
      * Used to upgrade (rehash) the user's password automatically over time.
+     *
+     * This method is required by the PasswordUpgraderInterface and is used
+     * by the password migration system to update password hashes to newer algorithms.
+     *
+     * @param PasswordAuthenticatedUserInterface $user               The user whose password needs to be upgraded
+     * @param string                             $newHashedPassword  The new hashed password
+     *
+     * @throws UnsupportedUserException If the user is not an instance of App\Entity\User
+     *
+     * @return void
      */
     public function upgradePassword(PasswordAuthenticatedUserInterface $user, string $newHashedPassword): void
     {
@@ -56,28 +84,54 @@ class UserRepository extends BaseRepository implements PasswordUpgraderInterface
         $this->save($user, true);
     }
 
-    //    /**
-    //     * @return User[] Returns an array of User objects
-    //     */
-    //    public function findByExampleField($value): array
-    //    {
-    //        return $this->createQueryBuilder('u')
-    //            ->andWhere('u.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->orderBy('u.id', 'ASC')
-    //            ->setMaxResults(10)
-    //            ->getQuery()
-    //            ->getResult()
-    //        ;
-    //    }
 
-    //    public function findOneBySomeField($value): ?User
-    //    {
-    //        return $this->createQueryBuilder('u')
-    //            ->andWhere('u.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->getQuery()
-    //            ->getOneOrNullResult()
-    //        ;
-    //    }
+
+
+    /**
+     * Sorts an array of User objects by their last name, then by first name.
+     * 
+     * This function assumes usernames are in the format "firstname.lastname" and
+     * sorts them alphabetically by lastname first, then by firstname if lastnames are identical.
+     * If the username format is unexpected, it falls back to comparing the full usernames.
+     *
+     * @param User[] $users An array of User objects to be sorted
+     *
+     * @return User[] The sorted array of User objects
+     */
+    public function getAllUsersOrderedByLastname(): array
+    {
+
+        $users = $this->findBy([], ['username' => 'ASC']);
+
+        usort(
+            $users,
+            function ($a, $b) {
+                $result = 0;
+                // Lower cases
+                $fullNameA = strtolower($a->getUsername());
+                $fullNameB = strtolower($b->getUsername());
+
+                try {
+                    // Split names to separate first name and last name
+                    list($firstNameA, $lastNameA) = explode('.', $fullNameA);
+                    list($firstNameB, $lastNameB) = explode('.', $fullNameB);
+
+                    // Compare last names
+                    $result = strcmp($lastNameA, $lastNameB);
+
+                    // If last names are equal, then compare first names
+                    if ($result == 0) {
+                        $result = strcmp($firstNameA, $firstNameB);
+                    }
+                } catch (\Exception $e) {
+                    // Fallback if name format is unexpected
+                    $result = strcmp($fullNameA, $fullNameB);
+                }
+
+                return $result;
+            }
+        );
+
+        return $users;
+    }
 }

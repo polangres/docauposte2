@@ -6,11 +6,13 @@ use App\Entity\Upload;
 
 use App\Form\UploadType;
 
+use App\Service\SettingsService;
+use App\Service\ValidationService;
+use App\Service\UploadService;
+use App\Service\UploadModificationService;
+
 use App\Service\Facade\EntityManagerFacade;
 use App\Service\Facade\ContentManagerFacade;
-use App\Service\UploadService;
-use App\Service\ValidationService;
-use App\Service\SettingsService;
 
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 
@@ -40,6 +42,11 @@ class UploadController extends AbstractController
     private $uploadService;
 
     /**
+     * @var UploadModificationService Service for handling file upload modification operations
+     */
+    private $uploadModificationService;
+
+    /**
      * @var SettingsService Service for accessing application settings
      */
     private $settingsService;
@@ -66,14 +73,16 @@ class UploadController extends AbstractController
      *
      * @param ValidationService $validationService Service for validating file uploads
      * @param UploadService $uploadService Service for handling file uploads
+     * @param UploadModificationService $uploadModificationService Service for handling file upload modification operations
      * @param SettingsService $settingsService Service for accessing application settings
      * @param EntityManagerFacade $entityManagerFacade Facade for entity management operations
      * @param ContentManagerFacade $contentManagerFacade Facade for content management operations
      */
     public function __construct(
-        // Services methods
+        // Services classes
         ValidationService               $validationService,
         UploadService                   $uploadService,
+        UploadModificationService       $uploadModificationService,
         SettingsService                 $settingsService,
         // Facade classes
         EntityManagerFacade             $entityManagerFacade,
@@ -83,10 +92,11 @@ class UploadController extends AbstractController
         // Variables related to the services
         $this->validationService            = $validationService;
         $this->uploadService                = $uploadService;
+        $this->uploadModificationService    = $uploadModificationService;
         $this->settingsService              = $settingsService;
         // Variables related to the facades
-        $this->entityManagerFacade         = $entityManagerFacade;
-        $this->contentManagerFacade        = $contentManagerFacade;
+        $this->entityManagerFacade          = $entityManagerFacade;
+        $this->contentManagerFacade         = $contentManagerFacade;
     }
 
     /**
@@ -110,7 +120,7 @@ class UploadController extends AbstractController
      * @return Response The rendered uploaded files template
      */
     #[Route('/uploaded', name: 'app_uploaded_files')]
-    public function uploaded_files(): Response
+    public function uploadedFiles(): Response
     {
         return $this->render(
             'services/uploads/uploaded.html.twig'
@@ -128,7 +138,7 @@ class UploadController extends AbstractController
      * @return Response A redirect response to the originating page with status messages
      */
     #[Route('/uploading', name: 'app_generic_upload_files')]
-    public function generic_upload_files(Request $request): Response
+    public function genericUploadFiles(Request $request): Response
     {
         // Get the URL of the page from which the request originated
         $originUrl = $request->headers->get('referer');
@@ -392,7 +402,7 @@ class UploadController extends AbstractController
                     $this->addFlash('error', 'Selectionner au moins ' . $neededValidator . ' validateurs pour valider le fichier.');
                 }
             }
-            $this->uploadService->modifyFile($upload, $request);
+            $this->uploadModificationService->modifyFile($upload, $request);
             $this->addFlash('success', 'Le fichier a été modifié.');
         } catch (\Exception $e) {
             $this->addFlash('error', $e->getMessage());

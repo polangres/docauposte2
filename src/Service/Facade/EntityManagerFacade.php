@@ -38,7 +38,7 @@ class EntityManagerFacade
 
     public function findBy(string $entityType, array $criteria)
     {
-        return $this->entityFetchingService->findBy($entityType, $criteria);
+        return $this->entityFetchingService->findBy(entityType: $entityType, criteria: $criteria);
     }
     public function findOneBy(string $entityType, array $criteria)
     {
@@ -108,6 +108,11 @@ class EntityManagerFacade
     public function findOperatorToBeDeleted()
     {
         return $this->entityFetchingService->findOperatorToBeDeleted();
+    }
+
+    public function findOperatorToBeDeletedWithNoDelayRestriction()
+    {
+        return $this->entityFetchingService->findOperatorToBeDeletedWithNoDelayRestriction();
     }
 
     public function findBySearchQuery(string $name, string $code, string $team, string $uap, string $trainer)
