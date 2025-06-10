@@ -2,6 +2,8 @@
 
 namespace App\Service;
 
+use Psr\Log\LoggerInterface;
+
 use Doctrine\ORM\EntityManagerInterface;
 
 use Symfony\Component\HttpFoundation\Request;
@@ -39,6 +41,9 @@ use App\Service\FileTypeService;
  */
 class UploadService extends AbstractController
 {
+
+    private $logger;
+
     /**
      * @var EntityManagerInterface Doctrine entity manager for database operations
      */
@@ -90,6 +95,7 @@ class UploadService extends AbstractController
      * @param FileTypeService        $fileTypeService   Service for validating and handling file types
      */
     public function __construct(
+        LoggerInterface         $logger,
         EntityManagerInterface  $em,
         UploadRepository        $uploadRepository,
 
@@ -99,6 +105,7 @@ class UploadService extends AbstractController
         FolderService           $folderService,
         FileTypeService         $fileTypeService,
     ) {
+        $this->logger                = $logger;
         $this->em                    = $em;
 
         $this->uploadRepository      = $uploadRepository;
@@ -320,17 +327,31 @@ class UploadService extends AbstractController
     public function filterDownloadFileResponse(Upload $upload, Request $request): Response
     {
         $isValidated        = $upload->isValidated();
-        $isForcedDisplay    = $upload->isForcedDisplay();
-        $isTraining         = $upload->isTraining();
+        $isForcedDisplay    = (bool)$upload->isForcedDisplay();
+        $isTraining         = (bool)$upload->isTraining();
         $hasOldUpload       = $upload->getOldUpload() !== null;
         $originUrl          = $request->headers->get('Referer');
 
         if ($isValidated === true) {
-            return $this->filterDownloadFileIsValidated(isTraining: $isTraining, upload: $upload);
+            return $this->filterDownloadFileIsValidated(
+                isTraining: $isTraining,
+                upload: $upload
+            );
         } elseif ($isValidated === false) {
-            return $this->filterDownloadFileIsRefused(isTraining: $isTraining, hasOldUpload: $hasOldUpload, upload: $upload, originUrl: $originUrl);
+            return $this->filterDownloadFileIsRefused(
+                isTraining: $isTraining,
+                hasOldUpload: $hasOldUpload,
+                upload: $upload,
+                originUrl: $originUrl
+            );
         } else {
-            return $this->filterDownloadFileIsBeingValidated(isTraining: $isTraining, hasOldUpload: $hasOldUpload, upload: $upload, isForcedDisplay: $isForcedDisplay);
+            return $this->filterDownloadFileIsBeingValidated(
+                isTraining: $isTraining,
+                hasOldUpload: $hasOldUpload,
+                upload: $upload,
+                isForcedDisplay: $isForcedDisplay,
+                originUrl: $originUrl
+            );
         }
     }
 
@@ -378,7 +399,7 @@ class UploadService extends AbstractController
         } elseif ($hasOldUpload) {
             $response = $this->oldUploadService->manageOldUploadDisplay($upload);
         } else {
-            $response = $this->redirect($originUrl, 307);
+            $response = $this->redirect(url: $originUrl, status: 307);
             $this->addFlash(
                 'Danger',
                 'Le fichier a été refusé par les validateurs et son affichage n\'est pas forcé. Contacter votre responsable pour plus d\'informations.'
@@ -397,18 +418,21 @@ class UploadService extends AbstractController
      * @param bool     $hasOldUpload   Indicates whether the upload file has an old upload.
      * @param Upload   $upload         The file in validation to be downloaded.
      * @param bool     $isForcedDisplay Indicates whether the upload file's display is forced.
+     * @param string   $originUrl      The origin URL of the download request.
      *
      * @return Response The response object representing the download file or a redirect to a training or validation page.
      */
-    public function filterDownloadFileIsBeingValidated(bool $isTraining, bool $hasOldUpload, Upload $upload, bool $isForcedDisplay): Response
+    public function filterDownloadFileIsBeingValidated(bool $isTraining, bool $hasOldUpload, Upload $upload, bool $isForcedDisplay, string $originUrl): Response
     {
-        if ($isForcedDisplay) {
+        if (!$isForcedDisplay) {
             if ($hasOldUpload) {
+                $this->logger->debug('OldUploadService: filterDownloadFileIsBeingValidated: Old upload display');
                 $response =  $this->oldUploadService->manageOldUploadDisplay($upload);
             } else {
+                $response = $this->redirect($originUrl);
                 $this->addFlash(
                     'Danger',
-                    'Le fichier est en cours de validation et son affichage n\'est pas forcé. Contacter votre responsable pour plus d\'informations.'
+                    'Le fichier est en cours de validation, son affichage n\'est pas forcé et il ne dispose pas d\' une ancienne version. Contacter votre responsable pour plus d\'informations.'
                 );
             }
         } else {
