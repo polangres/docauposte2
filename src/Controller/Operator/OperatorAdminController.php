@@ -129,12 +129,10 @@ class OperatorAdminController extends AbstractController
 
 
         $operatorForms = [];
-        $this->logger->info('OperatorAdminController: operatorAdminPage - operators', [$operators]);
+        $this->logger->info(message: 'OperatorAdminController: operatorAdminPage - operators', context: [$operators]);
 
         // Create and handle forms
         foreach ($operators as $operator) {
-            $this->logger->info('OperatorAdminController: operatorAdminPage - operator', [$operator->getUaps()->getValues()]);
-
             $operatorForms[$operator->getId()] = $this->createForm(OperatorType::class, $operator, [
                 'operator_id' => $operator->getId(),
             ])->createView();
@@ -163,90 +161,95 @@ class OperatorAdminController extends AbstractController
 
 
 
+
     /**
-     * Handles the editing of operator entities and displays operator search results.
+     * Handles the editing of operator entities and displays the operator list with forms.
      *
-     * This function processes operator editing requests and manages operator search functionality.
-     * When a specific operator is provided, it processes the operator's form for editing.
-     * It also handles search requests either from POST data or session parameters, creating
-     * forms for all found operators and rendering them in the admin interface.
+     * This function processes operator editing requests and manages the display of operator forms.
+     * If a specific operator is provided, it processes the form submission for that operator.
+     * It then retrieves operators based on search criteria (either from POST request or session)
+     * and creates forms for each operator. If no search criteria are found, it displays
+     * deactivated operators as a fallback.
      *
      * @param Request $request The HTTP request object containing form data, search parameters,
-     *                         and session information for operator editing and searching
+     *                         and session information for operator retrieval and form processing
      * @param Operator|null $operator The specific operator entity to edit, or null if no specific
-     *                                operator is being edited
+     *                                operator is being edited. When provided, triggers form processing
+     *                                for that operator
      *
-     * @return Response A rendered view containing the operator editing form and search results,
-     *                  displaying the admin list operator template with forms for found operators
+     * @return Response A rendered view containing the operator list component with forms for
+     *                  editing operators, displaying either search results or deactivated operators
      */
     #[Route('/operator/edit/{operator}', name: 'app_operator_edit')]
     public function editOperatorAction(Request $request, ?Operator $operator = null): Response
     {
-
-        $this->logger->info('OperatorAdminController::editOperatorAction', ['operator' => $operator]);
+        $this->logger->notice('OperatorAdminController::editOperatorAction');
 
         $operators = [];
         $operatorForms = [];
-        $form = null;
 
         if ($operator) {
-            $response = $this->operatorFormProcessing($operator, $request);
-            $form = $response[0];
-            $operatorForms = $response[1];
+            $this->logger->notice('OperatorAdminController::editOperatorAction - operator', [$operator]);
+            $this->operatorFormProcessing($operator, $request);
         }
 
         if ($request->isMethod('POST') && $request->request->get('search') == 'true') {
             $operators = $this->operatorService->operatorEntitySearchByRequest($request);
 
-            $this->logger->info('OperatorAdminController: editOperatorAction - operators with request key search', [$operators]);
+            $this->logger->info('OperatorAdminController::editOperatorAction - operators with request key search and post', [$operators]);
 
             foreach ($operators as $operator) {
                 $operatorForms[$operator->getId()] = $this->createForm(OperatorType::class, $operator, [
                     'operator_id' => $operator->getId(),
                 ])->createView();
-                $this->logger->info('OperatorAdminController: editOperatorAction - operator', [$operator]);
             }
         } elseif ($request->getSession()->has('operatorSearchParams')) {
-            $this->logger->info('OperatorAdminController: editOperatorAction - operatorSearchParams', [$request->getSession()->get('operatorSearchParams')]);
+
             $operators = $this->operatorService->operatorEntitySearchBySession($request);
+            $this->logger->info('OperatorAdminController::editOperatorAction - operatorSearchParams operators', [$operators]);
+
             foreach ($operators as $operator) {
                 $operatorForms[$operator->getId()] = $this->createForm(OperatorType::class, $operator, [
                     'operator_id' => $operator->getId(),
                 ])->createView();
-                $this->logger->info('OperatorAdminController: editOperatorAction - operator', [$operator]);
+            }
+        } else {
+            $this->logger->info('OperatorAdminController::editOperatorAction - operatorForms is empty');
+            $inActiveOperators = $this->operatorRepository->findDeactivatedOperators();
+            foreach ($inActiveOperators as $operator) {
+                $operatorForms[$operator->getId()] = $this->createForm(OperatorType::class, $operator, [
+                    'operator_id' => $operator->getId(),
+                ])->createView();
             }
         }
 
-        $this->logger->info('OperatorAdminController::editOperatorAction', ['operators' => $operators, 'operatorForms' => $operatorForms]);
+        $this->logger->info('OperatorAdminController::editOperatorAction - render operatorForms ', [$operatorForms]);
+
         return $this->render('services/operators/admin_component/_adminListOperator.html.twig', [
-            'form' => $form?->createView(),
-            'operator' => $operator ?? null,
             'operatorForms' => $operatorForms,
         ]);
     }
 
 
+
+
     /**
-     * Processes an operator form submission for editing an existing operator entity.
+     * Processes the form submission for editing an operator entity.
      *
-     * This function creates and handles an OperatorType form for the given operator,
-     * processes the form submission, and attempts to update the operator through the
-     * operator service. It manages success and error states, providing appropriate
-     * flash messages and logging. If an error occurs during processing, it prepares
-     * the form view for re-display with error information.
+     * This private method creates and handles an operator form, validates the submitted data,
+     * and attempts to update the operator through the operator service. It provides user
+     * feedback through flash messages and logs the operation results for debugging purposes.
+     * The method handles both successful updates and various error scenarios that may occur
+     * during form processing or operator modification.
      *
-     * @param Operator $operator The operator entity to be edited and processed
-     * @param Request $request The HTTP request object containing the form data
-     *                         and submission information
+     * @param Operator $operator The operator entity to be edited and updated
+     * @param Request $request The HTTP request object containing the form data to be processed
      *
-     * @return array An array containing two elements:
-     *               - [0]: The form object (FormInterface) that was created and processed
-     *               - [1]: An array of operator form views indexed by operator ID,
-     *                      populated only if an error occurred during processing
+     * @return void This method does not return a value but modifies the operator entity
+     *              and sets flash messages for user feedback
      */
-    private function operatorFormProcessing($operator, $request): array
+    private function operatorFormProcessing($operator, $request): void
     {
-        $operatorForms = [];
         $form = $this->createForm(OperatorType::class, $operator, [
             'operator_id' => $operator->getId(),
         ]);
@@ -257,23 +260,25 @@ class OperatorAdminController extends AbstractController
             try {
                 $this->operatorService->editOperatorService($form, $operator);
                 $this->addFlash('success', 'L\'opérateur a bien été modifié');
-                $this->logger->notice('Operator updated successfully', ['operator' => $operator]);
+                $this->logger->notice('OperatorAdminController::operatorFormProcessing - Operator updated successfully', ['operator' => $operator]);
             } catch (\Exception $e) {
                 $this->addFlash('danger', 'L\'opérateur n\'a pas pu être modifié. Erreur: ' . $e->getMessage());
-                $this->logger->error('Error while editing operator in try catch', [$e->getMessage()]);
+                $this->logger->error('OperatorAdminController::operatorFormProcessing - Error while editing operator in try catch', [$e->getMessage()]);
                 $error = true;
             }
         } else {
-            $this->logger->error('Error in submitting form while editing operator');
+            $this->logger->error('OperatorAdminController::operatorFormProcessing - Error in submitting form while editing operator');
             $error = true;
         }
 
         if ($error) {
-            $this->logger->error('error true');
-            $operatorForms = [$operator->getId() => $form->createView()];
+            $this->logger->error('OperatorAdminController::operatorFormProcessing - error true');
         }
-        return [$form, $operatorForms];
     }
+
+
+
+
 
 
     // Route to delete operator from the administrator view
